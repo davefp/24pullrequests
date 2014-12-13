@@ -14,34 +14,50 @@ class PullRequestDownloader
   end
 
   private
+
   def github_client
-    @github_client ||= Octokit::Client.new(:login => login, :access_token => oauth_token, :auto_paginate => true)
+    @github_client ||= GithubClient.new(login, oauth_token)
   end
 
   def download_pull_requests
-    begin
-      events = github_client.user_events(login)
-      events.select do |e|
-        event_date = e['created_at']
-        e.type == 'PullRequestEvent' &&
+    github_client.user_events.select do |e|
+      event_date = e['created_at']
+      e.type == 'PullRequestEvent' &&
         e.payload.action == 'opened' &&
         event_date >= PullRequest::EARLIEST_PULL_DATE &&
         event_date <= PullRequest::LATEST_PULL_DATE
-      end
-    rescue => e
-      puts e.inspect
-      puts 'likely a Github api error occurred'
-      []
     end
+  rescue => e
+    Rails.logger.error "Pull requests: likely a GitHub API error occurred:\n"\
+                       "#{e.inspect}"
+    []
   end
 
   def download_user_organisations
-    begin
-      github_client.organizations(login)
-    rescue
-      puts 'likely a Github api error occurred'
-      []
+    github_client.user_organizations.reject do |o|
+      Rails.logger.info "Updating organisation: #{o.login}"
+      ignored_organisations.include?(o.login)
     end
+  rescue => e
+    Rails.logger.error "Organisation error: likely a GitHub API error occurred:\n"\
+                       "#{e.inspect}"
+    []
   end
 
+  def ignored_organisations
+    [
+      'coderwall-altruist',
+      'coderwall-charity',
+      'coderwall-kona',
+      'coderwall-cub',
+      'coderwall-earlyadopter',
+      'coderwall-forked',
+      'coderwall-komododragon',
+      'coderwall-mongoose',
+      'coderwall-mongoose3',
+      'coderwall-octopussy',
+      'coderwall-raven',
+      'coderwall-polygamous'
+    ]
+  end
 end

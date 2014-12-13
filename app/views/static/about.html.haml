@@ -8,30 +8,14 @@
 
 %p
   =t("about.on_github")
-  = link_to 'github.com/andrew/24pullrequests', 'https://github.com/andrew/24pullrequests'
+  = link_to 'github.com/24pullrequests/24pullrequests', 'https://github.com/24pullrequests/24pullrequests'
 
 %p
   =t("about.on_twitter")
   = link_to 'twitter.com/24pullrequests', 'https://twitter.com/24pullrequests'
 
 %section
-  %h3=t("about.sponsors.title")
-  =t("about.sponsors.details")
+  %h3= t("about.sponsors.title")
+  %p= raw("#{t("about.sponsors.details")} #{link_to(t("about.sponsors.thanks"), sponsors_path)}")
 
-  =t("about.sponsors.thanks")
-
-  %section
-    =link_to 'http://dnsimple.com', :class => 'ntd' do
-      = image_tag 'sponsors/dnsimple.png', :class => 'img-polaroid'
-    = link_to 'http://postgres.heroku.com/', :class => 'ntd' do
-      = image_tag 'sponsors/heroku-pg.png', :class => 'img-polaroid'
-    = link_to 'http://cooperpress.com', :class => 'ntd' do
-      = image_tag 'sponsors/cooper-press.png', :class => 'img-polaroid'
-    = link_to 'http://forwardtechnology.co.uk', :class => 'ntd' do
-      = image_tag 'sponsors/forward.png', :class => 'img-polaroid'
-
-  %p
-    =t("about.sponsors.get_in_touch")
-    = mail_to 'info@24pullrequests.com'
-
-= render 'collaborators', users: @collaborators
+= render 'contributors', users: @contributors

@@ -1,4 +1,6 @@
 .pull_request {
+  @include clearfix;
+
   h4 {
     margin: 0;
     small {
@@ -14,4 +16,16 @@
     float: left;
     margin: 0 15px 10px 0;
   }
+  hr {
+    clear: left;
+  }
+
+  @media (max-width: 767px) {
+
+    small {
+      display:inline-block;
+    }
+
+  }
+
 }

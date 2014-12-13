@@ -1,21 +1,34 @@
 class ReminderMailer < ActionMailer::Base
+  add_template_helper(ApplicationHelper)
 
-  default :from => "24 Pull Requests <info@24pullrequests.com>"
+  FREQUENCY = { daily: 'Daily', weekly: 'Weekly' }
+
+  default from: '24 Pull Requests <info@24pullrequests.com>'
 
   def daily(user)
     @user = user
-    @suggested_projects = @user.suggested_projects.sample(8).sort_by(&:name)
-    mail :to => user.email,
-      :subject => "[24 Pull Requests] Daily Reminder",
-      'X-SMTPAPI' => '{"category": "Daily Reminder"}'
+
+    mail_suggested_projects(user, FREQUENCY[:daily])
   end
 
   def weekly(user)
     @user = user
-    @suggested_projects = @user.suggested_projects.sample(8).sort_by(&:name)
-    mail :to => user.email,
-      :subject => "[24 Pull Requests] Weekly Reminder",
-      'X-SMTPAPI' => '{"category": "Weekly Reminder"}'
+
+    mail_suggested_projects(user, FREQUENCY[:weekly])
   end
 
+  def november(user)
+    @user = user
+    mail to:      user.email,
+         subject: '24 Pull Requests is starting again soon'
+  end
+
+  private
+
+  def mail_suggested_projects(user, frequency)
+    @suggested_projects = user.suggested_projects.sample(8).sort_by(&:name)
+    mail :to         => user.email,
+         :subject    => %([24 Pull Requests] #{frequency} Reminder),
+         'X-SMTPAPI' => %({"category": "#{frequency} Reminder"})
+  end
 end

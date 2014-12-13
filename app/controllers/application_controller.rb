@@ -10,9 +10,10 @@ class ApplicationController < ActionController::Base
   end
 
   private
+
   def ensure_logged_in
     unless logged_in?
-      flash[:notice] = "You must be logged in to view this content."
+      flash[:notice] = 'You must be logged in to view this content.'
 
       session[:pre_login_destination] = "http://#{request.host_with_port}#{request.path}"
       redirect_to login_path
@@ -20,7 +21,7 @@ class ApplicationController < ActionController::Base
   end
 
   def current_year
-    @year ||= (params[:year].try(:to_i) || Time.now.year)
+    @year ||= (params[:year].try(:to_i) || CURRENT_YEAR)
   end
 
   def current_user
@@ -32,6 +33,6 @@ class ApplicationController < ActionController::Base
   end
 
   def admin?
-    current_user.is_collaborator?
+    current_user.admin?
   end
 end

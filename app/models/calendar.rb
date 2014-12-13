@@ -10,13 +10,13 @@ class Calendar
 
   def each
     giftable_dates.each do |date|
-      gift = gifts.find { |gift| gift.date == date }
+      gift = gifts.find { |g| g.date == date }
 
       yield(date, gift)
     end
   end
 
-  alias :each_day :each
+  alias_method :each_day, :each
 
   def start_padding
     giftable_dates.first.wday - 1

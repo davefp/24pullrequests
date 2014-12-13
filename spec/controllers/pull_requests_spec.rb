@@ -1,14 +1,14 @@
-require 'spec_helper'
+require 'rails_helper'
 
-describe PullRequestsController do
+describe PullRequestsController, type: :controller do
   describe 'GET index' do
     context 'as json' do
       before do
         create :pull_request
-        get :index, :format => :json
+        get :index, format: :json
       end
 
-      it { response.header['Content-Type'].should include 'application/json' }
+      it { expect(response.header['Content-Type']).to include 'application/json' }
     end
   end
 end

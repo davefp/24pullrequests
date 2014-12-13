@@ -16,3 +16,7 @@
     = truncate project.description, :length => 200
   .language.label.label-info
     = link_to project.main_language, language_path(project.main_language.downcase)
+  - project.labels.each do |label|
+    .project-label
+      %span.octicon.octicon-tag
+      = label.name

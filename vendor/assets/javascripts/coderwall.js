@@ -85,7 +85,7 @@
       self = this;
       badgeSize = self.options.badge_size;
       compileList = function(badge, badgeObj) {
-        return '<li class="box-badge"><div class="badge-icon' + (badgeObj.count > 1 ? ' show-count' : '') + '" data-count="' + badgeObj.count + '"><img width="' + badgeSize + '" height="' + badgeSize + '" alt="' + badge + '" data-title="' + badgeObj.description + '" src="' + badgeObj.badge + '"></div><div class="badge-name">' + badge + '</div></li>';
+        return '<li class="box-badge"><div class="badge-icon' + (badgeObj.count > 1 ? ' show-count' : '') + '" data-count="' + badgeObj.count + '"><img width="' + badgeSize + '" height="' + badgeSize + '" alt="' + badge + '" title="' + badgeObj.description + '" src="' + badgeObj.badge + '"></div><div class="badge-name">' + badge + '</div></li>';
       };
       teamBadgesList = '<ul id="team_box">';
       for (badge in teamBadges) {
@@ -95,7 +95,8 @@
       compileCoderList = function(coder) {
         return '<a href="http://coderwall.com/' + coder + '" target="_blank">' + coder + '</a>';
       };
-      teamBadgesList += '<div class="team-coders"><strong>Badges achieved by:&nbsp;</strong>';
+      // teamBadgesList += '<div class="team-coders"><strong>' + I18n.user.coderwall.achieved_by + ':&nbsp;</strong>';
+      teamBadgesList += '<div class="team-coders"><strong> Badges achieved by:&nbsp;</strong>';
       for (_i = 0, _len = team.length; _i < _len; _i++) {
         coder = team[_i];
         teamBadgesList += compileCoderList(coder);

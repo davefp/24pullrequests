@@ -1,52 +1,51 @@
-require 'spec_helper'
+require 'rails_helper'
 
-describe 'Admin Projects' do
+describe 'Admin Projects', type: :request do
   let(:user) { create :user }
-  let!(:projects) { [ "repo1", "repo2"].map { |repo| create :project, github_url: "http://github.com/christmas/#{repo}" } }
+  let!(:projects) { %w(apples mandarins).map { |repo| create :project, name: repo, github_url: "http://github.com/christmas/#{repo}" } }
   subject { page }
 
   before do
-    user.stub(:is_collaborator? => true)
+    mock_is_admin
     login(user)
 
     visit admin_projects_path
   end
 
   describe 'project index' do
-
-    it "should list all projects" do
+    it 'should list all projects' do
       projects.each do |project|
-        should have_content project.name
+        is_expected.to have_content project.name
       end
     end
   end
 
   describe 'managing projects' do
-    it "search for a project", js: true do
-      fill_in "_repository", with: "repo1"
-      click_on "Search"
+    it 'search for a project', js: true do
+      fill_in '_repository', with: 'apples'
+      click_on 'Search'
 
       sleep(Capybara.default_wait_time)
 
-      should have_content "repo1"
-      should_not have_content "repo2"
+      is_expected.to have_content 'apples'
+      is_expected.not_to have_content 'mandarins'
     end
 
-    it "editing a project", js: true do
-      first(:link, "Edit").click
+    it 'editing a project', js: true do
+      first(:link, 'Edit').click
 
       fill_in 'Name', with: 'Pugalicious'
-      click_on "Update Project"
+      click_on 'Update Project'
 
-      should have_content "Project updated successfully!"
+      is_expected.to have_content 'Project updated successfully!'
 
-      should have_content "PUGALICIOUS"
+      is_expected.to have_content 'Pugalicious'
     end
 
-    # it "deactives a project" do
-    #   first(:link, "Deactive").click
+    it 'deactives a project' do
+      first(:link, 'Deactive').click
 
-    #   should have_content "#{projects.first.name} has been deactivated."
-    # end
+      is_expected.to have_content "#{projects.first.name} has been deactivated."
+    end
   end
 end

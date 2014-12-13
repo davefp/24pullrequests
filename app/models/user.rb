@@ -1,75 +1,83 @@
 class User < ActiveRecord::Base
+  include Concerns::Coderwall
+  include Concerns::Twitter
+
   attr_writer :gift_factory
 
-  has_many :pull_requests, :dependent => :destroy
-  has_many :skills,        :dependent => :destroy
-  has_many :gifts,         :dependent => :destroy
+  has_many :pull_requests, dependent: :destroy
+  has_many :skills,        dependent: :destroy
+  has_many :gifts,         dependent: :destroy
   has_many :projects
+  has_many :events
   has_and_belongs_to_many :organisations
 
-  scope :by_language, -> (language) { joins(:skills).where("lower(language) = ?", language.downcase) }
+  has_many :archived_pull_requests
+
+  scope :by_language, -> (language) { joins(:skills).where('lower(language) = ?', language.downcase) }
 
   paginates_per 99
 
-  accepts_nested_attributes_for :skills, :reject_if => proc { |attributes| !Project::LANGUAGES.include?(attributes['language']) }
+  accepts_nested_attributes_for :skills, reject_if: proc { |attributes| !Project::LANGUAGES.include?(attributes['language']) }
 
   before_save :check_email_changed
   after_create :download_pull_requests, :estimate_skills, :download_user_organisations
 
-  validates_presence_of :email, :if => :send_regular_emails?
-  validates_format_of :email, :with => /\A[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]+\z/, :allow_blank => true, :on => :update
+  validates :email, presence: true, if: :send_regular_emails?
+  validates :email, format: { with: /\A[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]+\z/, allow_blank: true, on: :update }
 
   def self.find_by_nickname!(nickname)
     where(['lower(nickname) =?', nickname.downcase]).first!
   end
 
   def self.create_from_auth_hash(hash)
-    create!(extract_info(hash))
+    create!(AuthHash.new(hash).user_info)
   end
 
   def assign_from_auth_hash(hash)
     # do not update the email address in case the user has updated their
     # email prefs and used a new email
-    update_attributes(self.class.extract_info(hash).except(:email))
+    update_attributes(AuthHash.new(hash).user_info.except(:email))
   end
 
   def self.find_by_auth_hash(hash)
-    conditions = extract_info(hash).slice(:provider, :uid)
+    conditions = AuthHash.new(hash).user_info.slice(:provider, :uid)
     where(conditions).first
   end
 
-  def self.collaborators
-    collabs = Rails.configuration.collaborators
-    return [] if collabs.nil?
-    collaborators = collabs.map(&:login)
-    result = where('nickname in (?)', collaborators)
-    collaborators.compact.map { |c| result.find { |u| u.nickname == c } }
+  def self.contributors
+    @contributors ||= begin
+      contribs = load_user.github_client.contributors('24pullrequests/24pullrequests')
+      where_nickname_in(contribs.map(&:login))
+    end
   end
 
-  def authorize_twitter!(nickname, token, secret)
-    self.twitter_nickname = nickname
-    self.twitter_token    = token
-    self.twitter_secret   = secret
-    self.save!
+  def self.admins
+    @admins ||= where_nickname_in(organization_members.map(&:login))
   end
 
-  def remove_twitter!
-    self.twitter_nickname = nil
-    self.twitter_token    = nil
-    self.twitter_secret   = nil
-    self.save!
+  def self.load_user
+    user = User.order('created_at desc').limit(50).sample(1).first
+    return user if user.high_rate_limit?
+    load_user
   end
 
-  def twitter_linked?
-    twitter_token.present? && twitter_secret.present?
+  def self.organization_members
+    load_user.github_client.organization_members('24pullrequests')
   end
 
-  def twitter_profile
-    "https://twitter.com/#{twitter_nickname}" if twitter_nickname.present?
+  def self.where_nickname_in(nicknames)
+    result = where('nickname in (?)', nicknames)
+    nicknames.compact.map { |c| result.find { |u| u.nickname == c } }.compact
   end
+
+  delegate :high_rate_limit?, to: :github_client
 
   def github_profile
     "https://github.com/#{nickname}" if nickname.present?
+  end
+
+  def avatar_url(size = 80)
+    "https://avatars.githubusercontent.com/u/#{uid}?size=#{size}"
   end
 
   def suggested_projects
@@ -77,12 +85,9 @@ class User < ActiveRecord::Base
   end
 
   def estimate_skills
-    if ENV['GITHUB_KEY'].present?
-      languages = github_client.repos.map(&:language).uniq.compact
-      (Project::LANGUAGES & languages).each do |language|
-        skills.create(:language => language)
-      end
-    end
+    (Project::LANGUAGES & repo_languages).each do |language|
+      skills.create(language: language)
+    end if ENV['GITHUB_KEY'].present?
   end
 
   def languages
@@ -90,7 +95,7 @@ class User < ActiveRecord::Base
   end
 
   def github_client
-    @github_client ||= Octokit::Client.new(:login => nickname, :access_token => token, :auto_paginate => true)
+    @github_client ||= GithubClient.new(nickname, token)
   end
 
   def confirmed?
@@ -99,16 +104,14 @@ class User < ActiveRecord::Base
 
   def confirm!
     if email.present? && !confirmed?
-      self.confirmation_token = nil
-      self.confirmed_at = Time.now.utc
-      save
+      return update_attributes(confirmation_token: nil,
+                               confirmed_at:       Time.zone.now.utc)
     elsif confirmed?
       errors.add(:email, :already_confirmed)
-      false
     else
       errors.add(:email, :required_for_confirmation)
-      false
     end
+    false
   end
 
   def generate_confirmation_token
@@ -118,44 +121,18 @@ class User < ActiveRecord::Base
     end
   end
 
-  def check_email_changed
-    return unless self.email_changed?
-
-    self.generate_confirmation_token
-    self.confirmed_at = nil
-
+  def send_confirmation_email
+    generate_confirmation_token
+    self.save
     ConfirmationMailer.confirmation(self).deliver
   end
 
-  def send_notification_email
-    return unless confirmed?
-    if send_daily?
-      ReminderMailer.daily(self).deliver
-    elsif send_weekly?
-      ReminderMailer.weekly(self).deliver
-    else
-      return
-    end
-    update_attribute(:last_sent_at, Time.now.utc)
+  def new_gift(attrs = {})
+    GiftFactory.create!(self, gift_factory, attrs)
   end
 
-  def send_daily?
-    if email_frequency == 'daily'
-      last_sent_at.nil? || last_sent_at < 23.hours.ago
-    end
-  end
-
-  def send_weekly?
-    if email_frequency == 'weekly'
-      last_sent_at.nil? || last_sent_at < (6.days + 23.hours).ago
-    end
-  end
-
-  def new_gift(attrs={})
-    gift = gift_factory.call(attrs)
-    gift.date ||= closest_free_gift_date
-    gift.user = self
-    gift
+  def gift_factory
+    @gift_factory ||= Gift.public_method(:new)
   end
 
   def gift_for(date)
@@ -163,75 +140,50 @@ class User < ActiveRecord::Base
   end
 
   def send_regular_emails?
-    ['daily', 'weekly'].include? email_frequency
+    %w(daily weekly).include?(email_frequency)
   end
 
   def to_param
     nickname
   end
 
-  def download_user_organisations
-    pull_request_downloader.user_organisations.each do |o|
-      organisation = Organisation.create_from_github(o)
-      organisation.users << self
-      organisation.save
-    end
+  def download_user_organisations(access_token = token)
+    Downloader.new(self, access_token).get_organisations
   end
 
   def download_pull_requests(access_token = token)
-    pull_request_downloader(access_token).pull_requests.each do |pr|
-      pull_requests.create_from_github(pr) unless pull_requests.find_by_issue_url(pr['payload']['pull_request']['_links']['html']['href'])
-    end
-  end
-
-  def twitter
-    @twitter ||= Twitter::REST::Client.new do |config|
-      config.consumer_key        = ENV['TWITTER_KEY']
-      config.consumer_secret     = ENV['TWITTER_SECRET']
-      config.access_token        = twitter_token
-      config.access_token_secret = twitter_secret
-    end
+    Downloader.new(self, access_token).get_pull_requests
   end
 
   def unspent_pull_requests
-    gifted_pull_requests = gifts.map {|g| g.pull_request }
-    pull_requests.reject{|pr| gifted_pull_requests.include?(pr) }
+    gifted_pull_requests = gifts.map(&:pull_request)
+    pull_requests.reject { |pr| gifted_pull_requests.include?(pr) }
   end
 
-  def closest_free_gift_date
-    last_gift = self.gifts.last
-    last_gift.nil? ? PullRequest::EARLIEST_PULL_DATE : last_gift.date + 1.day
+  def needs_setup?
+    email_frequency.nil?
   end
 
-  def is_collaborator?
-    @collaborator ||= User.collaborators.include?(self)
+  def admin?
+    @admin ||= User.admins.include?(self)
+  end
+
+  def self.users_with_pull_request_counts(pull_request_year)
+    joins(:pull_requests).where('EXTRACT(year FROM pull_requests.created_at) = ?', pull_request_year).select('users.*, COUNT(pull_requests.id) as pull_requests_count').group('users.id')
   end
 
   private
 
-  def pull_request_downloader(access_token = token)
-    Rails.application.config.pull_request_downloader.call(nickname, access_token)
+  def repo_languages
+    @repo_languages ||= github_client.user_repository_languages
   end
 
-  def self.extract_info(hash)
-    provider    = hash.fetch('provider')
-    uid         = hash.fetch('uid')
-    nickname    = hash.fetch('info',{}).fetch('nickname')
-    email       = hash.fetch('info',{}).fetch('email', nil)
-    gravatar_id = hash.fetch('extra',{}).fetch('raw_info',{}).fetch('gravatar_id', nil)
-    token       = hash.fetch('credentials', {}).fetch('token')
+  def check_email_changed
+    return unless self.email_changed? && email.present?
 
-    {
-      :provider => provider,
-      :token => token,
-      :uid => uid,
-      :nickname => nickname,
-      :email => email,
-      :gravatar_id => gravatar_id
-    }
-  end
+    generate_confirmation_token
+    self.confirmed_at = nil
 
-  def gift_factory
-    @gift_factory ||= Gift.public_method(:new)
+    ConfirmationMailer.confirmation(self).deliver
   end
 end

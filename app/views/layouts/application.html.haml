@@ -12,7 +12,7 @@
 
     %meta{ :charset => "utf-8" }
     %meta{ :'http-equiv' => 'X-UA-Compatible', :content => "IE=Edge,chrome=1" }
-    %meta{ :name => "viewport", :content => "user-scalable=no, width=device-width, initial-scale=1.0, maximum-scale=1.0"  }
+    %meta{ :name => "viewport", :content => "width=device-width, initial-scale=1.0"  }
     %title= content_for?(:title) ? yield(:title) : "24 Pull Requests"
     = csrf_meta_tags
 
@@ -21,6 +21,11 @@
       <!--[if lt IE 9]>
         <script src="http://html5shim.googlecode.com/svn/trunk/html5.js" type="text/javascript"></script>
       <![endif]-->
+
+    %link{href: 'http://fonts.googleapis.com/css?family=Source+Sans+Pro:700,400', rel: 'stylesheet', type: 'text/css'}
+
+    = stylesheet_link_tag "//openlayers.org/en/v3.0.0/css/ol.css", :media => "all"
+    = javascript_include_tag "//openlayers.org/en/v3.0.0/build/ol.js"
 
     = stylesheet_link_tag "application", :media => "all"
 
@@ -46,73 +51,72 @@
   %body
     = content_for :body_open unless content_for(:body_open).nil?
 
-    %a.forkme{ :href => "https://github.com/andrew/24pullrequests", :target => '_blank'}
+    .snow
+
+    %a.forkme{ :href => "https://github.com/24pullrequests/24pullrequests"}
       %img{ :src => 'https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png', :alt => 'Fork me on GitHub'}
 
     %header
-      .bar
-      .logo
-        = link_to image_tag('logo.png'), root_path
+      .container
+        .logo
+          = link_to image_tag('logo.png'), root_path
 
-      - if params[:action] == 'homepage'
-        .tagline.hidden-phone
+        - if params[:action] == 'homepage'
+          .tagline.hidden-phone
 
-      .locale
-        .dropdown
-          %button.btn.dropdown-toggle.sr-only{ type: "button", id: "locale", "data-toggle" => "dropdown" }
-            =image_tag "flags/#{I18n.locale}.png", class: "flag"
-            =t("locale.#{I18n.locale}")
-            %psna.caret
-          %ul.dropdown-menu.pull-right{ role:"menu", "aria-labelledby" => "dropdownMenu1"}
-            - available_locales.each do |locale|
-              %li{ role: "presentation"}
-                =link_to locale_path(locale), role: "menuitem" do
-                  =image_tag "flags/#{locale}.png", class: "flag"
-                  =t("locale.#{locale}")
-            %li.divider
-            %li{ role: "presentation"}
-              =link_to t("locale.translate"), "https://github.com/andrew/24pullrequests/wiki/Adding-a-locale"
+        - if logged_in?
+          = render 'user_nav'
 
-    - if logged_in?
-      = render :partial => 'user_nav'
-
-    %article
-      .container-fluid
-        - unless logged_in?
-          .row-fluid
-            =render partial: "information"
-
-        .row-fluid
-          .span12
-            - if flash.any?
-              .messages
-                - if flash[:alert]
-                  .alert= flash[:alert]
-                - if flash[:notice]
-                  .alert.alert-info= flash[:notice]
-            = yield
+    %article#main.container{role: :main}
+      .row
+        .col-md-12
+          - if flash.any?
+            .messages
+              - if flash[:alert]
+                .alert.alert-danger= flash[:alert]
+              - if flash[:notice]
+                .alert.alert-info= flash[:notice]
+          - if helpful_emails? && unconfirmed_email?
+            .alert.alert-info
+              You must confirm your email address.
+              = link_to "Click here", resend_confirmation_path
+              to resend confirmation email.
+    .container.block= yield
 
   %footer
     .dark
-      .dark-inner
-        .logo.logo-dark
+      .dark-inner.container
         %ul.unstyled.pull-right
           %li
             #{t("sponsored_by")}&nbsp;
             #{link_to 'DNSimple', 'http://dnsimple.com'}
-            &nbsp;&amp;&nbsp;
+            &#44;&nbsp;
             = link_to 'Heroku Postgres', 'http://postgres.heroku.com/'
+            &nbsp;&amp;&nbsp;
+            = link_to 'SendGrid', 'http://sendgrid.com'
         %ul.unstyled.pull-left
           %li
             = link_to t("about_us"), about_path
           %li
+            = link_to t("sponsors"), sponsors_path
+          %li
             = link_to t("how_to_contribute"), contributing_path
           %li
             = link_to 'API', api_path
+          %li
+            .locale.dropup
+              %button.btn.btn-default.dropdown-toggle{ type: "button", id: "locale", "data-toggle" => "dropdown" }
+                =image_tag "flags/#{I18n.locale}.png", class: "flag"
+                =t("locale.#{I18n.locale}")
+                %span.caret
+              %ul.dropdown-menu.pull-right{ role:"menu", "aria-labelledby" => "dropdownMenu1"}
+                - available_locales.each do |locale|
+                  %li{ role: "presentation"}
+                    =link_to locale_path(locale), role: "menuitem" do
+                      =image_tag "flags/#{locale}.png", class: "flag"
+                      =t("locale.#{locale}")
+                %li.divider
+                %li{ role: "presentation"}
+                  =link_to t("locale.translate"), "https://github.com/24pullrequests/24pullrequests/wiki/Adding-a-locale"
 
-    .ftw
-      = link_to image_tag('humanstxt-isolated-blank.gif'), '/humans.txt'
-      = t("open_source_yey")
-      %strong= Time.now.year
-
-    = javascript_include_tag "application"
+  = javascript_include_tag "application"

@@ -1,0 +1,11 @@
+%section
+  %h3=t("contributors.title")
+  .row
+    - users.each_slice(6) do |row|
+      %ul.thumbnails.clearfix
+        - row.each do |user|
+          %li.collaborator.col-md-2
+            .thumbnail
+              = link_to image_tag(user.avatar_url(200), :width => 200, :height => 200, :alt => user.nickname).html_safe, user
+              .caption
+                %strong= link_to "@#{user.nickname}", user

@@ -12,7 +12,10 @@
 //
 //= require jquery
 //= require jquery_ujs
-//= require twitter/bootstrap
+//= require bootstrap-sprockets
+//= require typeahead.min
 //= require coderwall
 //= require jquery.timeago
+//= require jquery.datetimepicker
 //= require_tree .
+//
